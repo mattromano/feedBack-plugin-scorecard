@@ -1,0 +1,24 @@
+{
+  "id": "scorecard",
+  "name": "Scorecard",
+  "version": "1.0.0",
+  "description": "Rock Band-style score, streak, timing gauge and run history from Note Detection.",
+  "category": "practice",
+  "icon": "assets/thumb.svg",
+  "license": "MIT",
+  "minHost": "0.3.0-alpha.1",
+  "script": "screen.js",
+  "scriptType": "module",
+  "styles": "assets/scorecard.css",
+  "routes": "routes.py",
+  "settings": {
+    "html": "settings.html",
+    "category": "mic",
+    "server_files": [
+      "scorecard.db"
+    ]
+  },
+  "standards": [
+    "plugin-runtime-idempotent.v1"
+  ]
+}

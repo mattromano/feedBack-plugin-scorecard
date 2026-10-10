@@ -1,0 +1,12 @@
+{
+  "name": "feedback-plugin-scorecard",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scorecard plugin for feedBack — tests only, no build step.",
+  "license": "MIT",
+  "scripts": {
+    "check": "node scripts/check-syntax.mjs",
+    "test": "node scripts/check-syntax.mjs && node --test \"tests/*.test.mjs\""
+  }
+}

@@ -1,0 +1,18 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Manifest + layout against the plugin spec (single-sourced in feedBack-plugin-spec).
+  validate:
+    uses: got-feedback/feedBack-plugin-spec/.github/workflows/plugin-validate.yml@main
+
+  # Org-wide CI: `npm test` (node --check of every module + node --test) and pytest.
+  ci:
+    uses: got-feedback/.github/.github/workflows/reusable-ci.yml@main

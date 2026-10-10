@@ -1,0 +1,31 @@
+<!-- Scorecard settings. No inline script: src/main.js binds these controls by
+     their data-sc-setting attribute once it loads (and re-syncs them each time
+     Settings opens). Values are per browser (localStorage). -->
+<div class="sc-settings" data-sc-settings>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+        <span>
+            <span style="display:block;font-weight:600">Stats card</span>
+            <span style="display:block;font-size:12px;opacity:.7">Auto shows the compact card while you're in a multiplayer room.</span>
+        </span>
+        <select data-sc-setting="mode">
+            <option value="auto">Auto</option>
+            <option value="full">Full</option>
+            <option value="compact">Compact</option>
+            <option value="off">Off</option>
+        </select>
+    </label>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+        <span>
+            <span style="display:block;font-weight:600">Hit / miss marks on the highway</span>
+            <span style="display:block;font-size:12px;opacity:.7">Hits flash white, misses stay marked as they scroll past, partly played chords light amber.</span>
+        </span>
+        <input type="checkbox" data-sc-setting="marks">
+    </label>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <span>
+            <span style="display:block;font-weight:600">Size</span>
+            <span style="display:block;font-size:12px;opacity:.7">On top of the automatic sizing from the window height.</span>
+        </span>
+        <input type="range" min="0.6" max="1.6" step="0.1" data-sc-setting="scale">
+    </label>
+</div>
