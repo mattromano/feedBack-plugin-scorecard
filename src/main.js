@@ -19,6 +19,7 @@ import { createVerdictStore, composeProvider, verdictKey } from './engine/verdic
 import * as host from './host.js';
 import { getSettings, setSetting, nextMode } from './settings.js';
 import { fetchSong, postRun, beaconRun } from './api.js';
+import { wantsHud, claimsResults } from './visibility.js';
 import { el, COLORS, fireColor, fmtInt } from './ui/dom.js';
 import { createCard } from './ui/card.js';
 import { createHud } from './ui/hud.js';
@@ -45,7 +46,7 @@ function boot() {
         run: null, songKey: '', song: null, songFor: '', frozen: false,
         ndTotal: 0, minFactor: 1, feed: [], bestAnnounced: false, lastStreak: 0,
         chart: null, onPlayer: false, timer: 0, rafPending: false,
-        prevProvider: null, latencyMs: null, exitRelease: null, lastRun: null,
+        prevProvider: null, latencyMs: null, exitRelease: null, lastRun: null, hudHidden: false,
     };
 
     // ── DOM (created once, mounted into #player on demand) ──
@@ -308,7 +309,7 @@ function boot() {
             if (d.full_combo) hud.popup('FULL COMBO!', C.GOLD);
             else if (d.new_best) hud.popup('NEW BEST ' + Number(d.accuracy).toFixed(2) + '%!', C.GOLD);
             if (d.new_best_score) setTimeout(() => hud.popup('NEW BEST SCORE!', C.GOLD), d.full_combo || d.new_best ? 2100 : 0);
-            if (reason === 'ended' && getSettings().mode !== 'off') end.show(d, payload, sections, root.style.getPropertyValue('--sc-scale'));
+            if (reason === 'ended' && getSettings().mode !== 'off' && !st.hudHidden) end.show(d, payload, sections, root.style.getPropertyValue('--sc-scale'));
             try { window.feedBack.emit('scorecard:run', d); } catch (_) { /* bus optional */ }
             render();
         }).catch(() => { releaseExit(); /* server unavailable: the run is lost, the session isn't */ });
@@ -321,8 +322,10 @@ function boot() {
     }
 
     function updateVisibility() {
-        const want = st.onPlayer && getSettings().mode !== 'off' && !host.isDrums()
-            && (!!st.run || st.frozen || host.ndEnabled());
+        const want = wantsHud({
+            onPlayer: st.onPlayer, mode: getSettings().mode, isDrums: host.isDrums(),
+            hasRun: !!st.run, frozen: st.frozen, ndEnabled: host.ndEnabled(), hudHidden: st.hudHidden,
+        });
         if (want && !mount()) return;
         root.hidden = !want;
         root.toggleAttribute('data-compact', compactNow());
@@ -447,7 +450,7 @@ function boot() {
             // closed (core runs its song:ended handler first, so the timer is
             // already pending and holdAutoExit can cancel it synchronously).
             const r = st.run;
-            if (r && r.hits + r.misses >= MIN_JUDGED && getSettings().mode !== 'off'
+            if (r && claimsResults({ judged: r.hits + r.misses, minJudged: MIN_JUDGED, mode: getSettings().mode, hudHidden: st.hudHidden })
                 && window.feedBack && typeof window.feedBack.holdAutoExit === 'function') {
                 try { st.exitRelease = window.feedBack.holdAutoExit(); } catch (_) { st.exitRelease = null; }
             }
@@ -470,5 +473,13 @@ function boot() {
         getScore: () => Object.assign(engine.snapshot(), { factor: st.minFactor }),
         getRun: () => (st.run ? JSON.parse(JSON.stringify(st.run)) : null),
         getSong: () => st.song,
+        // Band mode hides the HUD and results card; runs are still finalized and posted.
+        setHudHidden: (hidden) => {
+            if (typeof hidden !== 'boolean') return false;
+            st.hudHidden = hidden;
+            updateVisibility();
+            return true;
+        },
+        isHudHidden: () => st.hudHidden,
     };
 }

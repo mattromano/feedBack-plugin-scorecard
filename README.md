@@ -83,6 +83,9 @@ highway, size. The player's **Plugins** popover has quick toggles for the card s
 Other plugins can read the live state with `window.feedBackScorecard.getScore()` / `getRun()` and
 listen for `scorecard:run` on `window.feedBack` after a run is saved.
 
+Other plugins: `setHudHidden(true)` hides the HUD and results card; runs are still saved.
+`isHudHidden()` reads the flag.
+
 ## Note Detection versions
 
 Note Detection ≥ 1.33 adds per-string chord results, technique names, section, latency and A/V

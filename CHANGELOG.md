@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- `window.feedBackScorecard.setHudHidden(hidden)` / `isHudHidden()`: other plugins (Build-a-Band) can hide the
+  HUD and the end-of-song card and its auto-exit hold. Runs are still finalized and saved.
+
 ## [1.0.0] - 2026-10-09
 
 First release.
