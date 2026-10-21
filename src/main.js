@@ -310,6 +310,7 @@ function boot() {
             else if (d.new_best) hud.popup('NEW BEST ' + Number(d.accuracy).toFixed(2) + '%!', C.GOLD);
             if (d.new_best_score) setTimeout(() => hud.popup('NEW BEST SCORE!', C.GOLD), d.full_combo || d.new_best ? 2100 : 0);
             if (reason === 'ended' && getSettings().mode !== 'off' && !st.hudHidden) end.show(d, payload, sections, root.style.getPropertyValue('--sc-scale'));
+            else if (reason === 'ended') releaseExit();   // hidden after the hold was claimed: no card will close it
             try { window.feedBack.emit('scorecard:run', d); } catch (_) { /* bus optional */ }
             render();
         }).catch(() => { releaseExit(); /* server unavailable: the run is lost, the session isn't */ });
@@ -477,6 +478,7 @@ function boot() {
         setHudHidden: (hidden) => {
             if (typeof hidden !== 'boolean') return false;
             st.hudHidden = hidden;
+            if (hidden) end.hide();   // an open card goes too; its onClose releases the hold
             updateVisibility();
             return true;
         },
