@@ -117,3 +117,33 @@ test('card open, then setHudHidden(true): card closes and the hold is released',
         assert.equal(env.w.feedBackScorecard.isHudHidden(), true);
     } finally { env.restore(); }
 });
+
+test('hidden at song end, shown again (band teardown) before postRun resolves: no card', async () => {
+    const env = await boot();
+    try {
+        env.handlers['screen:changed']({ detail: { id: 'player' } });
+        assert.equal(env.w.feedBackScorecard.setHudHidden(true), true);
+        env.judge(25);
+        env.handlers['song:ended']();
+        assert.equal(env.w.feedBackScorecard.setHudHidden(false), true);
+        env.resolveFetch();
+        await env.flush();
+        assert.equal(env.endCard().hidden, true);
+        assert.equal(env.endCard().isConnected, false);
+        assert.equal(env.releases.n, 0, 'no hold was claimed while hidden');
+    } finally { env.restore(); }
+});
+
+test('the song changed before postRun resolves: no card, hold released', async () => {
+    const env = await boot();
+    try {
+        env.handlers['screen:changed']({ detail: { id: 'player' } });
+        env.judge(25);
+        env.handlers['song:ended']();
+        env.w.feedBack.currentSong = { filename: 'b.psarc', title: 'U', arrangement: 'Lead' };
+        env.resolveFetch();
+        await env.flush();
+        assert.equal(env.endCard().hidden, true);
+        assert.equal(env.releases.n, 1);
+    } finally { env.restore(); }
+});

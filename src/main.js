@@ -300,6 +300,9 @@ function boot() {
         } catch (_) { /* diagnostics are optional */ }
         if (beacon) { beaconRun(payload); return; }
         const key = songKeyOf(r);
+        // Hidden at the end (band mode) stays hidden for this run's card, even
+        // if the hide is lifted (teardown) before postRun resolves.
+        const hidden = st.hudHidden;
         const sections = st.chart ? st.chart.sectionList : [];
         const releaseExit = () => { const r2 = st.exitRelease; st.exitRelease = null; if (r2) { try { r2(); } catch (_) { /* ignore */ } } };
         postRun(payload).then((d) => {
@@ -309,8 +312,9 @@ function boot() {
             if (d.full_combo) hud.popup('FULL COMBO!', C.GOLD);
             else if (d.new_best) hud.popup('NEW BEST ' + Number(d.accuracy).toFixed(2) + '%!', C.GOLD);
             if (d.new_best_score) setTimeout(() => hud.popup('NEW BEST SCORE!', C.GOLD), d.full_combo || d.new_best ? 2100 : 0);
-            if (reason === 'ended' && getSettings().mode !== 'off' && !st.hudHidden) end.show(d, payload, sections, root.style.getPropertyValue('--sc-scale'));
-            else if (reason === 'ended') releaseExit();   // hidden after the hold was claimed: no card will close it
+            const showCard = !hidden && !st.hudHidden && songKeyOf(host.currentSong()) === key;
+            if (reason === 'ended' && getSettings().mode !== 'off' && showCard) end.show(d, payload, sections, root.style.getPropertyValue('--sc-scale'));
+            else if (reason === 'ended') releaseExit();   // hidden or moved on: no card will close the hold
             try { window.feedBack.emit('scorecard:run', d); } catch (_) { /* bus optional */ }
             render();
         }).catch(() => { releaseExit(); /* server unavailable: the run is lost, the session isn't */ });
