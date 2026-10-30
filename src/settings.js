@@ -3,7 +3,7 @@
 
 export const MODES = ['auto', 'compact', 'full', 'off'];
 const KEY = 'scorecard.settings.v1';
-const DEFAULTS = { mode: 'auto', marks: true, scale: 1 };
+const DEFAULTS = { mode: 'auto', marks: true, scale: 1, cardMin: false };
 
 let cache = null;
 
@@ -13,6 +13,7 @@ function load() {
     const s = Object.assign({}, DEFAULTS, v && typeof v === 'object' ? v : {});
     if (!MODES.includes(s.mode)) s.mode = DEFAULTS.mode;
     s.marks = s.marks !== false;
+    s.cardMin = s.cardMin === true;
     s.scale = Number.isFinite(+s.scale) && +s.scale >= 0.5 && +s.scale <= 2.5 ? +s.scale : 1;
     return s;
 }

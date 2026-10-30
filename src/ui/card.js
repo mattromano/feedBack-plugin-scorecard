@@ -1,7 +1,8 @@
 // The stats card (right of the highway): live accuracy, form, timing gauge,
 // and this song's history. Two columns in full mode; in compact mode
 // (multiplayer rooms, or by choice) only the accuracy head and the timing
-// readout remain (CSS: .sc-root[data-compact]).
+// readout remain (CSS: .sc-root[data-compact]). Minimized (by choice, any
+// mode): a small pill with the accuracy; click it to open the card again.
 //
 // update(model) builds small HTML strings and writes a node only when its
 // string changed — no layout reads, no queries after mount.
@@ -237,6 +238,12 @@ function songHtml(m) {
     return h;
 }
 
+// The minimized pill's text: the accuracy so far, or a dash before any judged note.
+export function miniLabel(run) {
+    const total = run ? run.hits + run.misses : 0;
+    return total ? fmtPct2(100 * run.hits / total) : '–';
+}
+
 export function createCard(onAction) {
     const card = el('div', 'sc-card');
     const colA = el('div', 'sc-col sc-col-a');
@@ -249,7 +256,17 @@ export function createCard(onAction) {
     const modeBtn = el('button', 'sc-mode');
     modeBtn.type = 'button';
     modeBtn.dataset.act = 'mode';
-    card.append(modeBtn, colA, colB);
+    const minBtn = el('button', 'sc-min');
+    minBtn.type = 'button';
+    minBtn.dataset.act = 'min';
+    minBtn.textContent = '–';
+    minBtn.title = 'Minimize the stats card';
+    minBtn.setAttribute('aria-label', 'Minimize the stats card');
+    const mini = el('button', 'sc-mini');
+    mini.type = 'button';
+    mini.dataset.act = 'min';
+    mini.title = 'Show the stats card';
+    card.append(modeBtn, minBtn, mini, colA, colB);
     card.addEventListener('click', (ev) => {
         const b = ev.target && ev.target.closest ? ev.target.closest('button[data-act]') : null;
         if (!b || !card.contains(b)) return;
@@ -259,6 +276,13 @@ export function createCard(onAction) {
     return {
         el: card,
         update(m) {
+            const min = m.min === true;
+            if (card.hasAttribute('data-min') !== min) card.toggleAttribute('data-min', min);
+            if (min) {
+                const label = 'Stats ' + miniLabel(m.play ? m.play.run : m.run) + ' ▸';
+                if (mini.textContent !== label) mini.textContent = label;
+                return;
+            }
             if (m.play) {
                 setHtml(perf, playPerfHtml(m.play));
                 setHtml(timing, playTimingHtml(m.play));

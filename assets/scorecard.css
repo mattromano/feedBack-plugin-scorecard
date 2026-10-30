@@ -20,6 +20,17 @@
 .sc-mode { position: absolute; top: 4px; right: 6px; color: #8b95a5; background: rgba(255, 255, 255, .06);
     border: 1px solid rgba(255, 255, 255, .1); border-radius: 4px; padding: 0 5px; line-height: 15px; font-size: 10px !important; }
 .sc-mode:hover { color: #f1f5f9; }
+.sc-min { position: absolute; top: 4px; left: 6px; color: #8b95a5; background: rgba(255, 255, 255, .06);
+    border: 1px solid rgba(255, 255, 255, .1); border-radius: 4px; width: 18px; line-height: 15px; padding: 0;
+    font-size: 12px !important; }
+.sc-min:hover, .sc-mini:hover { color: #f1f5f9; }
+.sc-mini { display: none; color: #cbd5e1; background: none; border: 0; padding: 0; font-size: 13px !important; }
+/* minimized: just a pill with the accuracy */
+.sc-card[data-min] { display: block; padding: calc(5px * var(--sc-scale, 1)) calc(10px * var(--sc-scale, 1)); }
+.sc-card[data-min] > .sc-col,
+.sc-card[data-min] > .sc-mode,
+.sc-card[data-min] > .sc-min { display: none; }
+.sc-card[data-min] > .sc-mini { display: inline; }
 .sc-card .lbl { color: #8b95a5; }
 .sc-card b { color: #f1f5f9; }
 .sc-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 4px; }

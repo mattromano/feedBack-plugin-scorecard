@@ -3,6 +3,8 @@
 ## [1.1.0] - 2026-10-29
 
 ### Added
+- Minimize for the stats card: a − button collapses it to a small "Stats <accuracy> ▸" pill; click the pill to
+  open it again. Remembered across songs (`cardMin` in `scorecard.settings.v1`), for every instrument.
 - Drums and 5-fret controllers, from RockHeroSmith's `play:*` bus events (`play:session-start`, `play:judgment`,
   `play:rewind`, `play:result`, `play:session-end`). Real guitar stays on Note Detection; `play:*` for a guitar
   player is ignored.

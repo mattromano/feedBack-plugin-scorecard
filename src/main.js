@@ -526,7 +526,7 @@ function boot() {
         const cur = off ? off.get() : null;
         const list = followable(P.players);
         card.update({
-            mode: getSettings().mode,
+            mode: getSettings().mode, min: getSettings().cardMin,
             play: {
                 run: r, song: P.song, label: instrumentLabel(e.info), missWord: missWord(e.info.instrument),
                 players: list.length > 1 ? list.map((p) => ({ label: instrumentLabel(p), active: p.player === P.follow })) : [],
@@ -570,7 +570,7 @@ function boot() {
         const pass = r && r.pass && sec && r.pass.sec.key === sec.key ? r.pass : null;
         const avMs = host.avOffsetMs();
         card.update({
-            run: r, song: st.song, sec, pass, mode: getSettings().mode,
+            run: r, song: st.song, sec, pass, mode: getSettings().mode, min: getSettings().cardMin,
             summary: gauge.summary({ latencyMs: st.latencyMs, avMs }),
             latencyMs: st.latencyMs, avMs, lastMiss: gauge.lastMiss(now),
             canApplyLatency: host.canApplyLatency(), canApplyAv: host.canApplyAv(),
@@ -603,6 +603,7 @@ function boot() {
         else if (act === 'av' && Number.isFinite(v)) { host.applyAvMs(v); gauge.cancelCheck(); }
         else if (act === 'check') gauge.startCheck();
         else if (act === 'cancel') gauge.cancelCheck();
+        else if (act === 'min') setSetting('cardMin', !getSettings().cardMin);
         else if (act === 'mode') { setMode(nextMode(getSettings().mode) === 'off' ? 'auto' : nextMode(getSettings().mode)); return; }
         render();
     }
