@@ -19,7 +19,10 @@
   - Run history, bests and pace vs best per song + part (`drums`, `five_fret:<part>`) + difficulty, recorded once
     per player from `play:result` (never practice). RockHeroSmith's results screen owns the end of the song: no
     Scorecard end card, no auto-exit hold, no guitar popups over the instrument HUD.
-  - Layout clears RockHeroSmith's 48 px bar, crowd meter and callouts.
+  - Layout clears RockHeroSmith's 48 px bar, crowd meter and callouts. In a solo session the lane HUD shows
+    the score, so the streak box drops its SCORE row; a band shows the followed player's score.
+  - The end of a song that had a `play:*` session stays RockHeroSmith's even when its session ended before
+    Scorecard's `song:ended` handler ran (no hold, end card or guitar popups until the next `song:loading`).
 - `window.feedBackScorecard.instruments()` → `['guitar', 'drums', 'five_fret']` (RockHeroSmith uses it to leave
   the HUD visible) and `getPlay()` (the followed player's live run).
 - Routes: `part` and `difficulty` on `POST run`, `GET song` and `GET bests?part=`. `scorecard.db` from 1.0 is

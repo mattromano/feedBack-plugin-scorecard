@@ -69,7 +69,8 @@ Scorecard draws its HUD from them; a guitar player in those events is left to No
 - **History** per song + part (`drums`, `five_fret:guitar|rhythm|bass`) + difficulty: one run per player from
   `play:result` (practice results are skipped). RockHeroSmith's results screen owns the end of the song, so
   Scorecard shows no end card and holds no exit there.
-- **Layout**: clears RockHeroSmith's 48 px top bar, crowd meter and callouts.
+- **Layout**: clears RockHeroSmith's 48 px top bar, crowd meter and callouts. In a solo the lane HUD shows the
+  score, so the streak box has no SCORE row; in a band it shows the followed player's score.
 - `setHudHidden(true)` (RockHeroSmith's band mode) hides the guitar HUD only; the drums / 5-fret HUD still shows.
 
 Why Scorecard's own routes and not core's `/api/stats/history`: core's recorder already posts `play:result`

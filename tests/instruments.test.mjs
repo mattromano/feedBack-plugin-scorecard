@@ -304,3 +304,59 @@ test('a Note Detection guitar run inside a RockHeroSmith session never claims th
         assert.ok(env.calls.some((c) => c.url.endsWith('/run') && c.body.arrangement === 'Lead'), 'the guitar run is still saved');
     } finally { env.restore(); }
 });
+
+test('RHS ends the session before Scorecard sees song:ended: still no hold, card or guitar popups', async () => {
+    const env = await boot({ arrangement: 'Lead' });
+    try {
+        env.bus('play:session-start', { ...START, band: true, players: [
+            { player: 'guitar', instrument: 'guitar', part: 'lead', input: 'mic' },
+            { player: 'drums', instrument: 'drums', part: 'drums', input: 'kit', difficulty: 'expert' },
+        ] });
+        hits(env, 5);
+        const detail = (i) => ({ hit: true, noteTime: i, counted: true, isDefault: true, note: { s: 0, f: 1 }, timingState: 'OK', timingError: 0 });
+        for (let i = 0; i < 25; i++) for (const f of env.listeners['notedetect:hit']) f({ detail: detail(i) });
+        // RHS's own song:ended handler ran first.
+        env.bus('play:result', { sessionId: 's1', practice: false, players: [] });
+        env.bus('play:session-end', { sessionId: 's1', reason: 'results' });
+        env.bus('song:ended');
+        await env.flush();
+        assert.equal(env.holds.n, 0);
+        assert.equal(env.byClass('sc-end')[0].hidden, true);
+        assert.ok(!env.pops().some((t) => /FULL COMBO|NEW BEST/.test(t)));
+        // The next song is a plain guitar song again.
+        env.bus('song:loading');
+        for (let i = 0; i < 25; i++) for (const f of env.listeners['notedetect:hit']) f({ detail: detail(i) });
+        env.bus('song:ended');
+        assert.equal(env.holds.n, 1);
+    } finally { env.restore(); }
+});
+
+test('solo session: no SCORE row (the lane HUD shows it); band: the followed player\'s score shows', async () => {
+    const env = await boot();
+    try {
+        env.bus('play:session-start', START);
+        hits(env, 3);
+        assert.equal(env.root().attrs['data-play-solo'], '');
+        env.bus('play:session-start', { ...START, sessionId: 's2', band: true, players: [
+            ...START.players, { player: 'ctl1', instrument: 'five_fret', part: 'bass', input: 'controller', difficulty: 'expert' }] });
+        hits(env, 3, 1, { sessionId: 's2' });
+        assert.equal(env.root().attrs['data-play-solo'], undefined);
+    } finally { env.restore(); }
+});
+
+for (const order of ['before', 'after']) {
+    test(`setHudHidden(true) ${order} session-start keeps the drums HUD`, async () => {
+        const env = await boot();
+        try {
+            if (order === 'before') env.w.feedBackScorecard.setHudHidden(true);
+            env.bus('play:session-start', START);
+            if (order === 'after') env.w.feedBackScorecard.setHudHidden(true);
+            hits(env, 3);
+            if (order === 'after') env.w.feedBackScorecard.setHudHidden(true);
+            assert.equal(env.root().hidden, false);
+            assert.equal(env.w.feedBackScorecard.getPlay().streak, 3);
+            env.w.feedBackScorecard.setHudHidden(false);
+            assert.equal(env.root().hidden, false);
+        } finally { env.restore(); }
+    });
+}

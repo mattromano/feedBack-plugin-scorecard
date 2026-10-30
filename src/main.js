@@ -57,6 +57,10 @@ function boot() {
         // { id, filename, title, artist, band, players, runs: Map(player → { run, gauge, info }),
         //   follow, song, songFor, bestAnnounced, ended }
         play: null, playRecorded: new Set(),
+        // A play:* session ran on this song (set by play:result / session-end, cleared on
+        // song:loading): RockHeroSmith may tear the session down in its own song:ended
+        // handler before ours runs, and the end of the song is still its results screen's.
+        playDone: false,
     };
 
     // ── DOM (created once, mounted into #player on demand) ──
@@ -404,6 +408,7 @@ function boot() {
         if (!d) return;
         const P = st.play && (d.sessionId == null || !st.play.id || String(d.sessionId) === st.play.id) ? st.play : null;
         if (P) P.ended = true;
+        st.playDone = true;
         const session = P || { filename: d.filename };
         for (const p of Array.isArray(d.players) ? d.players : []) {
             if (!p || typeof p !== 'object') continue;
@@ -429,9 +434,12 @@ function boot() {
         const P = st.play;
         if (!P || (d && d.sessionId != null && P.id && String(d.sessionId) !== P.id)) return;
         st.play = null;
+        st.playDone = true;
         hud.reset();
         updateVisibility();
     }
+
+    const inPlaySession = () => !!st.play || st.playDone;
 
     function finalize(reason, beacon) {
         const r = st.run;
@@ -458,14 +466,14 @@ function boot() {
         const key = songKeyOf(r);
         // Hidden at the end (band mode) stays hidden for this run's card, even
         // if the hide is lifted (teardown) before postRun resolves.
-        const hidden = st.hudHidden || !!st.play;   // RockHeroSmith's results own a play:* session's end
+        const hidden = st.hudHidden || inPlaySession();   // RockHeroSmith's results own a play:* session's end
         const sections = st.chart ? st.chart.sectionList : [];
         const releaseExit = () => { const r2 = st.exitRelease; st.exitRelease = null; if (r2) { try { r2(); } catch (_) { /* ignore */ } } };
         postRun(payload).then((d) => {
             if (!d || !d.ok) { releaseExit(); return; }
             if (st.songFor === key) st.song = d;
             const C = hud.colors;
-            if (!st.play) {   // the drums / 5-fret HUD on screen is not this guitar run's
+            if (!inPlaySession()) {   // a drums / 5-fret session's end isn't this guitar run's
                 if (d.full_combo) hud.popup('FULL COMBO!', C.GOLD);
                 else if (d.new_best) hud.popup('NEW BEST ' + Number(d.accuracy).toFixed(2) + '%!', C.GOLD);
                 if (d.new_best_score) setTimeout(() => hud.popup('NEW BEST SCORE!', C.GOLD), d.full_combo || d.new_best ? 2100 : 0);
@@ -496,6 +504,8 @@ function boot() {
         root.hidden = !want;
         root.toggleAttribute('data-compact', compactNow());
         root.toggleAttribute('data-play', playing);
+        // A solo session's lane HUD shows the score already: no SCORE row (CSS). A band's lanes hide theirs.
+        root.toggleAttribute('data-play-solo', playing && !st.play.band);
     }
 
     function scheduleRender() {
@@ -630,6 +640,7 @@ function boot() {
         b.on('song:loading', () => {
             finalize('switch');
             st.play = null;
+            st.playDone = false;
             st.frozen = false;
             st.chart = null;
             st.ndTotal = 0;
@@ -657,7 +668,7 @@ function boot() {
             // closed (core runs its song:ended handler first, so the timer is
             // already pending and holdAutoExit can cancel it synchronously).
             const r = st.run;
-            if (r && claimsResults({ judged: r.hits + r.misses, minJudged: MIN_JUDGED, mode: getSettings().mode, hudHidden: st.hudHidden, playSession: !!st.play })
+            if (r && claimsResults({ judged: r.hits + r.misses, minJudged: MIN_JUDGED, mode: getSettings().mode, hudHidden: st.hudHidden, playSession: inPlaySession() })
                 && window.feedBack && typeof window.feedBack.holdAutoExit === 'function') {
                 try { st.exitRelease = window.feedBack.holdAutoExit(); } catch (_) { st.exitRelease = null; }
             }
