@@ -29,9 +29,11 @@ export function createHud() {
     let last = { streak: -1, fire: null, mult: 0 };
 
     function updateStreak(s, mult, bestText) {
-        if (s !== last.streak) {
+        if (s !== last.streak || mult !== last.mult) {
             last.streak = s;
-            const mc = MULT_COLORS[mult - 1];
+            last.mult = mult;
+            // ×1–×4 colours; RockHeroSmith's overdrive multipliers (×5+) keep the ×4 colour.
+            const mc = MULT_COLORS[Math.max(1, Math.min(MULT_COLORS.length, Math.round(mult) || 1)) - 1];
             const fc = fireColor(s);
             streak.classList.toggle('idle', s === 0);
             setText(r.num, String(s));

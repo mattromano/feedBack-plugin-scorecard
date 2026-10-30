@@ -42,12 +42,16 @@ export function gaugePos(ms) {
     return 0.5 + 0.5 * Math.max(-1, Math.min(1, ms / RANGE_MS));
 }
 
-// The Audio Latency Offset that centres a median error, clamped to the slider.
-export function latencySuggestion(latencyMs, medianMs) {
+// The Audio Latency Offset that centres a median error, clamped to the slider
+// (Note Detection's 0–250 ms; an instrument's input offset passes its own range).
+export function latencySuggestion(latencyMs, medianMs, range) {
+    const lo = range && Number.isFinite(range.min) ? range.min : 0;
+    const hi = range && Number.isFinite(range.max) ? range.max : LATENCY_MAX_MS;
     if (!Number.isFinite(latencyMs) || !Number.isFinite(medianMs)) return null;
     if (Math.abs(medianMs) < DEAD_MS) return { ok: true, value: Math.round(latencyMs) };
     const want = Math.round(latencyMs + medianMs);
-    const value = Math.max(0, Math.min(LATENCY_MAX_MS, want));
+    const step = range && range.step > 0 ? range.step : 1;
+    const value = Math.max(lo, Math.min(hi, Math.round(want / step) * step));
     return { ok: false, value, atLimit: value !== want, raise: medianMs > 0, changes: value !== Math.round(latencyMs) };
 }
 
@@ -60,13 +64,13 @@ export function avSuggestion(avMs, deltaMs) {
 }
 
 /**
- * createTimingGauge()
+ * createTimingGauge(range?)            range: { min, max } of the offset it suggests
  *   push(j, { latencyMs, avMs, now })   j: normalised judgment
  *   summary({ latencyMs, avMs })        → { samples, errors, median, cls, latency, byEar, check }
  *   startCheck() / cancelCheck() / reset()
  *   lastMiss(now)                       → { ms, age } for 1.5 s after an EARLY/LATE miss
  */
-export function createTimingGauge() {
+export function createTimingGauge(range) {
     let raw = [];             // latency-free samples (ms)
     let lastAv = null;
     let check = null;         // { base, ear: [], done: { delta } | null }
@@ -112,7 +116,7 @@ export function createTimingGauge() {
             byEar,
             canCheck: !check && raw.length >= MIN_N,
             latency: (!byEar && errors.length >= MIN_N && Number.isFinite(c.latencyMs))
-                ? latencySuggestion(c.latencyMs, m) : null,
+                ? latencySuggestion(c.latencyMs, m, range) : null,
             check: check ? { progress: check.ear.length, need: EAR_N,
                 result: check.done ? avSuggestion(c.avMs, check.done.delta) : null } : null,
         };

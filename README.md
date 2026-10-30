@@ -5,8 +5,9 @@ the judgments [Note Detection](https://github.com/got-feedback/feedBack-plugin-n
 It scores your playing, shows how your timing sits, marks hits and misses on the highway, and keeps
 a history of every run per song and arrangement.
 
-Requires feedBack **0.3.0-alpha.1** or newer (ES-module plugins) and the Note Detection plugin.
-Nothing happens until Note Detection judges a note.
+Requires feedBack **0.3.0-alpha.1** or newer (ES-module plugins) and the Note Detection plugin for real
+guitar. Drums and 5-fret controllers come in through [RockHeroSmith](https://github.com/mattromano/feedBack-plugin-rockherosmith)'s
+play layer (see **Drums and 5-fret** below). Nothing happens until a note is judged.
 
 ## What it shows
 
@@ -31,7 +32,8 @@ Nothing happens until Note Detection judges a note.
   play count; the current section's pass vs its best; weak spots (techniques, per-string bars).
 - **Compact** in a multiplayer room (only accuracy and timing), automatically with the multiplayer
   plugin's `<html data-mp-room>`, or by choice.
-- Hidden on Drums arrangements (pitch judgments mean nothing on a drum chart).
+- On Drums arrangements only with RockHeroSmith input (Note Detection's pitch judgments mean nothing on a
+  drum chart).
 
 **Solo meter**: on sections named "solo" — or, when the chart names none, sections that look like a
 solo (mostly single notes, fast, unique, up the neck, ≥ 3 bars) — a live % meter at the top and a
@@ -46,6 +48,33 @@ built-in 2D highway honours the colours; the 3D highway shows its own hit / miss
 **End-of-song card**: banner (full combo / new best / practice run), score and where it came from,
 solos, technical runs, song best and trend, and this run's sections (vs their bests), weakest
 techniques and per-string accuracy. It holds core's return-to-menu until you close it.
+
+## Drums and 5-fret
+
+RockHeroSmith scores drums (MIDI kit or controller) and 5-fret controllers, solo or in a band, and publishes
+`play:session-start`, `play:judgment`, `play:rewind`, `play:result` and `play:session-end` on `window.feedBack`.
+Scorecard draws its HUD from them; a guitar player in those events is left to Note Detection.
+
+- **Score, streak, multiplier**: RockHeroSmith's (points summed, streak and multiplier from each judgment), not
+  the guitar scoring below. Streak box, on-fire glow, milestones, "streak ended" and NEW SONG BEST STREAK work
+  as for guitar.
+- **Stats card**: accuracy, hits / judged, last-50 form, misses (early, late, missed, overhits / overstrums).
+  Guitar-only rows are hidden (single vs chord, pitch, not heard, techniques, strings, sections, solo meter).
+- **Timing gauge** from each hit's `offsetMs`. When you're consistently early or late it suggests the input
+  offset that centres you; **Apply** sets it live: drums on the kit (the drums plugin's input offset, ±250 ms),
+  5-fret per controller (±200 ms, 5 ms steps). Drums controllers have no live setter yet, so they get a hint
+  instead of Apply. The A/V check is guitar-only.
+- **Band**: follows one local drums / 5-fret player, the first by default; a picker on the card switches when
+  there are several. `auto` size is compact in a band.
+- **History** per song + part (`drums`, `five_fret:guitar|rhythm|bass`) + difficulty: one run per player from
+  `play:result` (practice results are skipped). RockHeroSmith's results screen owns the end of the song, so
+  Scorecard shows no end card and holds no exit there.
+- **Layout**: clears RockHeroSmith's 48 px top bar, crowd meter and callouts.
+- `setHudHidden(true)` (RockHeroSmith's band mode) hides the guitar HUD only; the drums / 5-fret HUD still shows.
+
+Why Scorecard's own routes and not core's `/api/stats/history`: core's recorder already posts `play:result`
+there for XP and career; Scorecard keeps its own history (with the same record shape for guitar and
+instruments: sparkline, best streak, pace vs best) and works on a core without the part tables.
 
 ## Scoring
 
@@ -73,7 +102,9 @@ Settings → Export).
 Core already records plays, accuracy and XP from Note Detection's events, so Scorecard doesn't post
 to `/api/stats`; it reads core's play count to show next to its own history.
 
-Routes (`/api/plugins/scorecard/…`): `GET song?filename=&arrangement=`, `POST run`, `GET bests`.
+Routes (`/api/plugins/scorecard/…`): `GET song?filename=&arrangement=` (`&part=&difficulty=` for drums /
+5-fret), `POST run` (optional `part`, `difficulty`), `GET bests` (guitar, by arrangement) and
+`GET bests?part=drums` (by difficulty). A `scorecard.db` from 1.0 is migrated in place on start.
 
 ## Settings
 
@@ -83,8 +114,9 @@ highway, size. The player's **Plugins** popover has quick toggles for the card s
 Other plugins can read the live state with `window.feedBackScorecard.getScore()` / `getRun()` and
 listen for `scorecard:run` on `window.feedBack` after a run is saved.
 
-Other plugins: `setHudHidden(true)` hides the HUD and results card; runs are still saved.
-`isHudHidden()` reads the flag.
+Other plugins: `setHudHidden(true)` hides the guitar HUD and results card; runs are still saved.
+`isHudHidden()` reads the flag. `instruments()` lists what the HUD draws (`guitar`, `drums`, `five_fret`);
+`getPlay()` returns the followed drums / 5-fret player's live run.
 
 ## Note Detection versions
 

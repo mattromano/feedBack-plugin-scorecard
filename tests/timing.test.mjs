@@ -108,3 +108,24 @@ test('last EARLY/LATE miss is shown for 1.5 s', () => {
     g.reset();
     assert.equal(g.lastMiss(1001), null);
 });
+
+test('latencySuggestion takes an instrument range (drums ±250, 5-fret ±200)', () => {
+    assert.deepEqual(latencySuggestion(0, -40, { min: -250, max: 250 }),
+        { ok: false, value: -40, atLimit: false, raise: false, changes: true });
+    assert.equal(latencySuggestion(-190, -40, { min: -200, max: 200 }).value, -200);
+    assert.equal(latencySuggestion(-190, -40, { min: -200, max: 200 }).atLimit, true);
+    assert.equal(latencySuggestion(10, -40).value, 0, 'default range is Note Detection\'s 0–250');
+});
+
+test('a gauge with a range suggests negative offsets', () => {
+    const g = createTimingGauge({ min: -250, max: 250 });
+    for (let i = 0; i < 8; i++) g.push({ hit: true, timingError: -30 }, { latencyMs: 0 });
+    const s = g.summary({ latencyMs: 0 });
+    assert.equal(s.latency.value, -30);
+    assert.equal(s.latency.raise, false);
+});
+
+test('latencySuggestion rounds to the range step (5-fret: 5 ms)', () => {
+    assert.equal(latencySuggestion(0, 22, { min: -200, max: 200, step: 5 }).value, 20);
+    assert.equal(latencySuggestion(0, 23, { min: -200, max: 200, step: 5 }).value, 25);
+});

@@ -182,3 +182,89 @@ def test_core_stats_optional(tmp_path):
 def test_bad_query(client):
     r = client.get("/api/plugins/scorecard/song", params={"filename": "x" * 2000})
     assert r.status_code == 400
+
+
+# ── parts (drums / 5-fret runs from RockHeroSmith's play:result) ──
+
+def drum_run(**kw):
+    body = run(arrangement="", part="drums", difficulty="expert", details={"sections": {}})
+    body.update(kw)
+    return body
+
+
+def test_part_runs_are_separate_from_guitar(client):
+    client.post("/api/plugins/scorecard/run", json=run())
+    d = client.post("/api/plugins/scorecard/run", json=drum_run(hits=80, misses=20)).json()
+    assert d["ok"] and d["part"] == "drums" and d["difficulty"] == "expert"
+    assert d["run_count"] == 1 and d["first_full_run"] and d["best"]["accuracy"] == 80.0
+    g = client.get("/api/plugins/scorecard/song", params={"filename": "Song.sloppak", "arrangement": "Lead"}).json()
+    assert g["run_count"] == 1 and g["best"]["accuracy"] == 90.0 and g["part"] == "" and g["difficulty"] == ""
+    p = client.get("/api/plugins/scorecard/song",
+                   params={"filename": "Song.sloppak", "part": "drums", "difficulty": "expert"}).json()
+    assert p["run_count"] == 1 and p["best"]["accuracy"] == 80.0
+
+
+def test_part_difficulties_and_parts_are_separate(client):
+    client.post("/api/plugins/scorecard/run", json=drum_run())
+    for params in ({"part": "drums", "difficulty": "hard"}, {"part": "five_fret:bass", "difficulty": "expert"}):
+        d = client.get("/api/plugins/scorecard/song", params={"filename": "Song.sloppak", **params}).json()
+        assert d["run_count"] == 0
+    d = client.post("/api/plugins/scorecard/run", json=drum_run(part="five_fret:bass")).json()
+    assert d["run_count"] == 1 and d["part"] == "five_fret:bass"
+
+
+def test_part_bests(client):
+    client.post("/api/plugins/scorecard/run", json=run())
+    client.post("/api/plugins/scorecard/run", json=drum_run(hits=100, misses=0, score=5000))
+    client.post("/api/plugins/scorecard/run", json=drum_run(difficulty="hard"))
+    b = client.get("/api/plugins/scorecard/bests").json()
+    assert b == {"Song.sloppak": {"Lead": {"accuracy": 90.0, "score": 12000, "full_combo": False}}}   # unchanged shape
+    p = client.get("/api/plugins/scorecard/bests", params={"part": "drums"}).json()
+    assert p == {"Song.sloppak": {"expert": {"accuracy": 100.0, "score": 5000, "full_combo": True},
+                                  "hard": {"accuracy": 90.0, "score": 12000, "full_combo": False}}}
+
+
+@pytest.mark.parametrize("bad", [
+    {"part": "Drums"}, {"part": "drums:"}, {"part": "a:b:c"}, {"part": 5}, {"difficulty": "insane"},
+    {"difficulty": "expert", "part": ""},
+])
+def test_part_validation(client, bad):
+    r = client.post("/api/plugins/scorecard/run", json=drum_run(**bad))
+    assert r.status_code == 400
+
+
+def test_part_query_validation(client):
+    for params in ({"part": "Bad!"}, {"part": "drums", "difficulty": "nope"}):
+        r = client.get("/api/plugins/scorecard/song", params={"filename": "a", **params})
+        assert r.status_code == 400
+    assert client.get("/api/plugins/scorecard/bests", params={"part": "Bad!"}).status_code == 400
+
+
+def test_migrates_an_old_db_idempotently(tmp_path):
+    import sqlite3
+    path = tmp_path / "scorecard.db"
+    conn = sqlite3.connect(str(path))
+    conn.executescript("""
+        CREATE TABLE runs (id INTEGER PRIMARY KEY AUTOINCREMENT, filename TEXT NOT NULL, arrangement TEXT NOT NULL,
+            title TEXT, artist TEXT, ts TEXT NOT NULL, accuracy REAL NOT NULL, hits INTEGER NOT NULL,
+            misses INTEGER NOT NULL, best_streak INTEGER NOT NULL DEFAULT 0, score INTEGER,
+            complete INTEGER NOT NULL DEFAULT 0, looped INTEGER NOT NULL DEFAULT 0, speed REAL NOT NULL DEFAULT 1,
+            progress REAL NOT NULL DEFAULT 0, played_s REAL NOT NULL DEFAULT 0, details TEXT);
+        CREATE INDEX idx_runs_song ON runs(filename, arrangement);
+        INSERT INTO runs (filename, arrangement, ts, accuracy, hits, misses, complete)
+            VALUES ('Song.sloppak', 'Lead', '2026-01-01T00:00:00Z', 75, 75, 25, 1);
+    """)
+    conn.commit()
+    conn.close()
+    for _ in range(2):   # opening twice must not fail or duplicate anything
+        store = routes.ScoreStore(path)
+    d = store.song("Song.sloppak", "Lead")
+    assert d["run_count"] == 1 and d["best"]["accuracy"] == 75.0
+    assert store.song("Song.sloppak", "", part="drums", difficulty="expert")["run_count"] == 0
+    conn = sqlite3.connect(str(path))
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(runs)")]
+        assert cols.count("part") == 1 and cols.count("difficulty") == 1
+        assert conn.execute("SELECT part, difficulty FROM runs").fetchone() == ("", "")
+    finally:
+        conn.close()

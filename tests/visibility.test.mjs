@@ -11,11 +11,20 @@ test('wantsHud matches the old rule and hudHidden wins', () => {
     assert.equal(wantsHud({ ...base, isDrums: true }), false);
 });
 
+test('wantsHud: a followed drums / 5-fret player shows on drums and through hudHidden, not when off', () => {
+    assert.equal(wantsHud({ ...base, isDrums: true, playing: true, hasRun: false, ndEnabled: false }), true);
+    assert.equal(wantsHud({ ...base, hudHidden: true, playing: true }), true);
+    assert.equal(wantsHud({ ...base, mode: 'off', playing: true }), false);
+    assert.equal(wantsHud({ ...base, onPlayer: false, playing: true }), false);
+});
+
 test('claimsResults needs enough judgments, a mode and no hide', () => {
     assert.equal(claimsResults({ judged: 10, minJudged: 5, mode: 'full', hudHidden: false }), true);
     assert.equal(claimsResults({ judged: 4, minJudged: 5, mode: 'full', hudHidden: false }), false);
     assert.equal(claimsResults({ judged: 10, minJudged: 5, mode: 'full', hudHidden: true }), false);
     assert.equal(claimsResults({ judged: 10, minJudged: 5, mode: 'off', hudHidden: false }), false);
+    assert.equal(claimsResults({ judged: 10, minJudged: 5, mode: 'full', hudHidden: false, playSession: true }), false,
+        'RockHeroSmith\'s results own the end of a play:* session');
 });
 
 // ── behavioural: boot main.js against fakes ──

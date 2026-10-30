@@ -48,6 +48,69 @@ function perfHtml(run) {
     return h;
 }
 
+// ── drums / 5-fret (RockHeroSmith play:* input) ──
+function playPerfHtml(P) {
+    let h = '';
+    if (P.players.length) {
+        h += '<div class="sc-follow"><span class="lbl">following</span>' + P.players.map((p, i) =>
+            '<button type="button" class="sc-btn' + (p.active ? ' on' : '') + '" data-act="follow" data-v="' + i + '"' +
+            (p.active ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' + esc(p.label) + '</button>').join('') + '</div>';
+    }
+    const r = P.run;
+    const total = r.hits + r.misses;
+    const acc = total ? 100 * r.hits / total : null;
+    h += '<div class="sc-head"><div class="sc-acc" style="color:' + accuracyColor(acc == null ? null : Math.floor(acc)) + '">' +
+        (acc == null ? '–' : fmtPct2(acc)) + '</div><div class="lbl">' + r.hits + ' / ' + total + '<br>notes hit</div></div>';
+    if (r.recent.length >= 10) {
+        const f = pct(r.recent.filter(Boolean).length, r.recent.length);
+        const d = acc == null ? 0 : f - acc;
+        const arrow = d >= 3 ? ' <span style="color:' + GOLD + '">▲</span>' : d <= -3 ? ' <span style="color:' + BLUE + '">▼</span>' : '';
+        h += row('last ' + r.recent.length, '<b>' + f + '%</b>' + arrow, 'sc-detail');
+    }
+    const w = r.why, parts = [];
+    if (w.early) parts.push(w.early + ' early');
+    if (w.late) parts.push(w.late + ' late');
+    if (w.missed) parts.push(w.missed + ' missed');
+    if (w.overhit) parts.push(w.overhit + ' ' + P.missWord);
+    if (parts.length) h += row('misses', '<span class="sc-why">' + parts.join(' · ') + '</span>', 'sc-detail');
+    return h;
+}
+
+function playTimingHtml(P) {
+    const s = P.summary;
+    let head, ticks = '', med = '', hint = '';
+    if (!s || !s.samples) {
+        head = 'timing: waiting for hits';
+    } else {
+        const n = s.errors.length;
+        ticks = s.errors.map((ms, i) => '<i style="left:' + (gaugePos(ms) * 100).toFixed(1) + '%;background:' + timingCol(ms) +
+            ';opacity:' + (0.25 + 0.75 * (i + 1) / n).toFixed(2) + '"></i>').join('');
+        const c = timingCol(s.median);
+        med = '<b style="left:' + (gaugePos(s.median) * 100).toFixed(1) + '%;background:' + c + ';box-shadow:0 0 6px ' + c + '"></b>';
+        const word = s.cls === 'ontime' ? 'on time' : s.cls === 'early' ? 'EARLY' : 'LATE';
+        head = 'timing <span class="sc-tword" style="color:' + c + '">' + (s.cls === 'ontime' ? '' : fmtMs(s.median) + ' ') + word +
+            '</span> <span class="lbl">(median of ' + n + ')</span>';
+        if (n >= MIN_N) {
+            const L = s.latency;
+            if (L && L.ok) {
+                hint = '<span class="lbl">input offset ' + Math.round(P.offsetMs) + ' ms looks right</span>';
+            } else if (L) {
+                hint = (L.raise ? '▲ raise' : '▼ lower') + ' input offset ' + Math.round(P.offsetMs) + ' → <b style="color:' + OK + '">' +
+                    L.value + ' ms</b>' + (L.atLimit ? ' (limit)' : '') +
+                    (L.changes && P.canApply ? btn('off', 'Apply', L.value, 'Set the ' + P.where + ' input offset') : '');
+            } else if (s.cls !== 'ontime') {
+                const by = Math.abs(Math.round(s.median));
+                hint = '<span class="lbl">' + (s.median > 0 ? 'raise' : 'lower') + ' the input offset by ' + by + ' ms (' +
+                    esc(P.where) + ' settings)</span>';
+            }
+        }
+    }
+    return '<div class="sc-thead">' + head + '</div>' +
+        '<div class="sc-gauge"><span class="mid"></span>' + ticks + med + '</div>' +
+        '<div class="sc-legend"><span style="color:' + EARLY + '">early</span><span>' + RANGE_MS + ' ms</span><span style="color:' + LATE + '">late</span></div>' +
+        (hint ? '<div class="sc-hint">' + hint + '</div>' : '');
+}
+
 function timingHtml(m) {
     const s = m.summary;
     let head, ticks = '', med = '', hint = '';
@@ -122,16 +185,17 @@ function spark(runs, best) {
     return svg + '</svg>';
 }
 
-function songHtml(m) {
-    const { run, song, sec, pass } = m;
+// This song's history: best, best score, last run, pace vs best, plays, sparkline.
+function historyHtml(run, song, title) {
     const total = run ? run.hits + run.misses : 0;
     const live = total > 0 ? 100 * run.hits / total : null;
     let h = '';
     if (total >= 10 && run.misses === 0) h += '<div class="sc-fc">★ FULL COMBO</div>';
+    if (title && !song) h += '<div class="sc-sub">' + title + '</div>';
     if (song) {
         const best = song.best ? song.best.accuracy : null;
         const last = song.runs && song.runs.length ? song.runs[0].accuracy : null;
-        h += '<div class="sc-sub">This song</div>';
+        h += '<div class="sc-sub">' + (title || 'This song') + '</div>';
         h += row('best', '<b class="sc-big" style="color:' + GOLD + '">' + (best != null ? fmtPct2(best) : '–') + '</b>');
         if (song.best_score) h += row('best score', '<b style="color:' + GOLD + '">' + fmtInt(song.best_score.score) + '</b>');
         if (last != null) h += row('last run', '<b>' + fmtPct2(last) + '</b>');
@@ -142,6 +206,18 @@ function songHtml(m) {
         if (song.core && song.core.plays) h += row('plays', '<b>' + fmtInt(song.core.plays) + '</b>');
         h += spark(song.runs || [], best);
     }
+    return h;
+}
+
+function playSongHtml(P) {
+    return historyHtml(P.run, P.song, 'This song · ' + esc(P.label));
+}
+
+function songHtml(m) {
+    const { run, song, sec, pass } = m;
+    const total = run ? run.hits + run.misses : 0;
+    const live = total > 0 ? 100 * run.hits / total : null;
+    let h = historyHtml(run, song, null);
     if (sec) {
         const sb = song && song.section_best ? song.section_best[sec.key] : null;
         const now = pass ? pct(pass.h, pass.h + pass.m) : null;
@@ -183,9 +259,15 @@ export function createCard(onAction) {
     return {
         el: card,
         update(m) {
-            setHtml(perf, perfHtml(m.run));
-            setHtml(timing, timingHtml(m));
-            setHtml(song, songHtml(m));
+            if (m.play) {
+                setHtml(perf, playPerfHtml(m.play));
+                setHtml(timing, playTimingHtml(m.play));
+                setHtml(song, playSongHtml(m.play));
+            } else {
+                setHtml(perf, perfHtml(m.run));
+                setHtml(timing, timingHtml(m));
+                setHtml(song, songHtml(m));
+            }
             const label = 'card: ' + m.mode;
             if (modeBtn.textContent !== label) {
                 modeBtn.textContent = label;

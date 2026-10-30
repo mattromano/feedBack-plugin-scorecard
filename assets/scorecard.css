@@ -168,3 +168,16 @@
     .sc-root:not([data-compact]) .sc-card { grid-template-columns: auto; }
     .sc-root:not([data-compact]) .sc-col-b { display: none; }
 }
+
+/* Drums / 5-fret (RockHeroSmith play:* input, .sc-root[data-play]). RockHeroSmith draws a 48 px
+   bar across the top of #player (slim in a solo), a crowd meter down the left edge from 48 px
+   (left 10 px, 10 px wide) and its callouts at 38 % in the middle. So the glow starts under the
+   bar, the streak box keeps clear of the crowd meter, and popups sit lower than the callouts.
+   The stats card already starts below the bar (top ≥ 17rem, or 22 % compact). */
+.sc-root[data-play] .sc-fire { top: 48px; }
+.sc-root[data-play] .sc-streak { left: max(1.5%, 34px); }
+.sc-root[data-play] .sc-pop { top: 60%; }
+.sc-root[data-play] .sc-pop.small { top: 67%; }
+.sc-follow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin-bottom: 6px; }
+.sc-follow > .sc-btn { margin-left: 0; }
+.sc-follow > .sc-btn.on { border-color: #ffc531; color: #ffc531; }

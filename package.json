@@ -1,6 +1,6 @@
 {
   "name": "feedback-plugin-scorecard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Scorecard plugin for feedBack — tests only, no build step.",
