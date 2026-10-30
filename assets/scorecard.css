@@ -192,5 +192,6 @@
 .sc-follow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin-bottom: 6px; }
 .sc-follow > .sc-btn { margin-left: 0; }
 .sc-follow > .sc-btn.on { border-color: #ffc531; color: #ffc531; }
-/* A solo session's lane HUD already shows the score: keep streak and multiplier, drop SCORE. */
+/* A solo session's lane HUD already shows streak, multiplier and score: drop Scorecard's. */
+.sc-root[data-play-solo] .sc-streak,
 .sc-root[data-play-solo] .sc-score { display: none; }

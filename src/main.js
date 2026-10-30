@@ -504,7 +504,7 @@ function boot() {
         root.hidden = !want;
         root.toggleAttribute('data-compact', compactNow());
         root.toggleAttribute('data-play', playing);
-        // A solo session's lane HUD shows the score already: no SCORE row (CSS). A band's lanes hide theirs.
+        // A solo session's lane HUD shows streak and score already: no streak box or SCORE row (CSS). A band's lanes hide theirs.
         root.toggleAttribute('data-play-solo', playing && !st.play.band);
     }
 
