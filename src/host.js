@@ -77,3 +77,56 @@ export function playerControlSlot() {
     return (fb && fb.uiVersion === 'v3' && fb.ui && typeof fb.ui.playerControlSlot === 'function')
         ? safe(() => fb.ui.playerControlSlot(), null) : null;
 }
+
+// ── Drums / 5-fret input offset (the timing gauge's Apply) ──
+// { where, min, max, get() -> ms | null, set(ms) -> ms | null } for a play:*
+// player, or null when that instrument offers no setter (Apply is hidden).
+// A public setInputOffset / getInputOffset(canvas) on feedBackDrums /
+// feedBackFiveFret wins when present. Otherwise:
+//  - drums on the MIDI kit: the drums plugin's calibration hooks
+//    (__drumsSetInputOffset, __drumsGetConfig().inputOffsetMs): the same path
+//    as its settings field and its early/late Apply, live for every session;
+//  - 5-fret: the lane's controller offset through FiveFretProfiles.setOffset
+//    plus five_fret:offset-changed (what its quick settings do), live.
+// A drums controller lane has no public live setter yet: no Apply.
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const clampTo = (v, lo, hi, step) => Math.max(lo, Math.min(hi, Math.round(v / step) * step));
+
+export function instrumentOffset(p) {
+    if (!p) return null;
+    const canvas = p.canvas == null ? undefined : p.canvas;
+    if (p.instrument === 'drums') {
+        const d = window.feedBackDrums;
+        if (d && typeof d.setInputOffset === 'function' && typeof d.getInputOffset === 'function') {
+            return { where: 'Drums', min: -250, max: 250,
+                get: () => num(safe(() => d.getInputOffset(canvas), null)),
+                set: (ms) => num(safe(() => d.setInputOffset(clampTo(ms, -250, 250, 1), canvas), null)) };
+        }
+        if (p.input === 'kit' && typeof window.__drumsSetInputOffset === 'function' && typeof window.__drumsGetConfig === 'function') {
+            return { where: 'Drums', min: -250, max: 250,
+                get: () => num(safe(() => window.__drumsGetConfig().inputOffsetMs, null)),
+                set: (ms) => num(safe(() => window.__drumsSetInputOffset(clampTo(ms, -250, 250, 1)), null)) };
+        }
+        return null;
+    }
+    if (p.instrument === 'five_fret') {
+        const f = window.feedBackFiveFret;
+        if (f && typeof f.setInputOffset === 'function' && typeof f.getInputOffset === 'function') {
+            return { where: '5-Fret', min: -200, max: 200,
+                get: () => num(safe(() => f.getInputOffset(canvas), null)),
+                set: (ms) => num(safe(() => f.setInputOffset(clampTo(ms, -200, 200, 5), canvas), null)) };
+        }
+        const P = window.FiveFretProfiles;
+        const key = safe(() => f.getInstanceState(canvas).controllerKey, null);
+        if (!P || typeof P.setOffset !== 'function' || typeof P.loadSettings !== 'function' || typeof key !== 'string' || !key) return null;
+        return { where: '5-Fret', min: -200, max: 200,
+            get: () => num(safe(() => P.loadSettings().offsetMs[key], null)) ?? 0,
+            set: (ms) => {
+                const v = clampTo(ms, -200, 200, 5);
+                if (safe(() => { P.setOffset(key, v); return true; }, false) !== true) return null;
+                safe(() => window.feedBack.emit('five_fret:offset-changed', { controllerKey: key, offsetMs: v }));
+                return v;
+            } };
+    }
+    return null;
+}

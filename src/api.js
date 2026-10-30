@@ -2,8 +2,11 @@
 
 const BASE = '/api/plugins/scorecard';
 
-export async function fetchSong(filename, arrangement) {
+// part / difficulty: a drums or 5-fret run's history (core's part key, e.g.
+// 'drums', 'five_fret:bass'); omitted for real guitar.
+export async function fetchSong(filename, arrangement, part, difficulty) {
     const q = new URLSearchParams({ filename, arrangement: arrangement || '' });
+    if (part) { q.set('part', part); q.set('difficulty', difficulty || ''); }
     const r = await fetch(BASE + '/song?' + q.toString());
     if (!r.ok) throw new Error('scorecard: song ' + r.status);
     return r.json();

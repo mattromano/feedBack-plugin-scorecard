@@ -1,7 +1,11 @@
-"""Scorecard — run history and bests per song + arrangement.
+"""Scorecard — run history and bests per song + arrangement (real guitar) or
+song + part + difficulty (drums / 5-fret).
 
-Runs are posted by the frontend when a song ends, another song or
-arrangement loads, detection resets, or the page closes. They live in a
+Guitar runs are posted by the frontend when a song ends, another song or
+arrangement loads, detection resets, or the page closes. Drums and 5-fret
+runs are posted from RockHeroSmith's ``play:result`` with a ``part`` key
+(``drums``, ``five_fret:<part>``, core's rule) and a ``difficulty``; guitar
+runs have ``part`` and ``difficulty`` ``''``. They live in a
 small SQLite file under the Host's ``config_dir`` (``scorecard.db``, declared
 in ``settings.server_files`` so Settings export/import carries it).
 
@@ -10,14 +14,20 @@ events (``POST /api/stats``), so this plugin never posts there; it only reads
 core's per-song stats (plays) to show next to its own history.
 
 Routes (all under ``/api/plugins/scorecard/``):
-- ``GET  song?filename=&arrangement=`` → history, bests, section bests, core plays
+- ``GET  song?filename=&arrangement=&part=&difficulty=`` → history, bests,
+  section bests, core plays
 - ``POST run``                         → store a run, return the song record +
   what changed (new best, full combo, ...)
-- ``GET  bests``                       → ``{filename: {arrangement: best}}``
+- ``GET  bests``                       → ``{filename: {arrangement: best}}`` (guitar)
+- ``GET  bests?part=drums``            → ``{filename: {difficulty: best}}``
+
+Databases from 1.0 are migrated in place on start (two added columns with
+``''`` defaults and an index; idempotent), so their runs stay guitar runs.
 """
 
 import json
 import logging
+import re
 import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
@@ -28,6 +38,9 @@ HISTORY_LIMIT = 40
 MAX_DETAILS_BYTES = 64 * 1024
 MAX_TEXT = 512
 WEEK = timedelta(days=7)
+# core's part key format (lib/play_parts.py); '' is real guitar
+PART_RE = re.compile(r"^[a-z][a-z0-9_]{0,23}(:[a-z][a-z0-9_]{0,23})?$")
+DIFFICULTIES = ("easy", "medium", "hard", "expert")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -52,12 +65,31 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE INDEX IF NOT EXISTS idx_runs_song ON runs(filename, arrangement);
 """
 
+# 1.1: drums / 5-fret runs. Added columns (not in _SCHEMA) so an old file and a
+# new one end up with the same table; each step checks before it runs.
+_PART_COLUMNS = (("part", "TEXT NOT NULL DEFAULT ''"), ("difficulty", "TEXT NOT NULL DEFAULT ''"))
+_PART_INDEX = "CREATE INDEX IF NOT EXISTS idx_runs_part ON runs(filename, part, difficulty, arrangement)"
+
 _RUN_COLS = ("id", "ts", "accuracy", "hits", "misses", "best_streak", "score", "complete",
              "looped", "speed", "progress", "played_s", "details")
 
 
 class RunError(ValueError):
     """A posted run failed validation (→ HTTP 400)."""
+
+
+def check_part(part, difficulty):
+    """Validate a part key + difficulty pair: both '' (guitar) or a part key and
+    '' / a difficulty. Returns them, or raises RunError."""
+    if not isinstance(part, str) or not isinstance(difficulty, str):
+        raise RunError("part and difficulty must be strings")
+    if part and not PART_RE.match(part):
+        raise RunError("bad part")
+    if difficulty and difficulty not in DIFFICULTIES:
+        raise RunError("bad difficulty")
+    if difficulty and not part:
+        raise RunError("difficulty needs a part")
+    return part, difficulty
 
 
 def _text(v, limit=MAX_TEXT):
@@ -122,8 +154,25 @@ class ScoreStore:
         self.log = log or logging.getLogger("feedBack.plugin.scorecard")
         self._lock = threading.Lock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
+        conn = self._connect()
+        try:
             conn.executescript(_SCHEMA)
+            self._migrate(conn)
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _migrate(conn):
+        have = {r[1] for r in conn.execute("PRAGMA table_info(runs)")}
+        for name, decl in _PART_COLUMNS:
+            if name not in have:
+                try:
+                    conn.execute(f"ALTER TABLE runs ADD COLUMN {name} {decl}")
+                except sqlite3.OperationalError as e:   # another process added it first
+                    if "duplicate column" not in str(e).lower():
+                        raise
+        conn.execute(_PART_INDEX)
 
     def _connect(self):
         conn = sqlite3.connect(str(self.path), timeout=10)
@@ -131,17 +180,18 @@ class ScoreStore:
         return conn
 
     # ── reads ──
-    def _rows(self, filename, arrangement):
+    def _rows(self, filename, arrangement, part="", difficulty=""):
         conn = self._connect()
         try:
             return [dict(r) for r in conn.execute(
-                "SELECT " + ", ".join(_RUN_COLS) + " FROM runs WHERE filename = ? AND arrangement = ? ORDER BY id",
-                (filename, arrangement))]
+                "SELECT " + ", ".join(_RUN_COLS) + " FROM runs WHERE filename = ? AND arrangement = ?"
+                " AND part = ? AND difficulty = ? ORDER BY id",
+                (filename, arrangement, part, difficulty))]
         finally:
             conn.close()
 
-    def song(self, filename, arrangement, exclude_id=None):
-        rows = [r for r in self._rows(filename, arrangement) if r["id"] != exclude_id]
+    def song(self, filename, arrangement, exclude_id=None, part="", difficulty=""):
+        rows = [r for r in self._rows(filename, arrangement, part, difficulty) if r["id"] != exclude_id]
         counted = [r for r in rows if is_counted(r)]
         best = max(counted, key=lambda r: (r["accuracy"], -r["id"]), default=None)
         best_score = max((r for r in counted if r["score"] is not None),
@@ -165,7 +215,7 @@ class ScoreStore:
                 | {"complete": bool(r["complete"]), "looped": bool(r["looped"])}
                 for r in reversed(rows[-HISTORY_LIMIT:])]
         return {
-            "filename": filename, "arrangement": arrangement,
+            "filename": filename, "arrangement": arrangement, "part": part, "difficulty": difficulty,
             "runs": runs, "run_count": len(rows),
             "best": {k: best[k] for k in ("ts", "accuracy", "best_streak")} if best else None,
             "best_score": {k: best_score[k] for k in ("ts", "score", "accuracy")} if best_score else None,
@@ -177,17 +227,20 @@ class ScoreStore:
             "practice_s": round(sum(r["played_s"] or 0 for r in rows)),
         }
 
-    def bests(self):
+    def bests(self, part=""):
+        """Guitar (part ''): {filename: {arrangement: best}}; a part: {filename: {difficulty: best}}."""
+        key = "difficulty" if part else "arrangement"
         conn = self._connect()
         try:
             rows = conn.execute(
-                "SELECT filename, arrangement, MAX(accuracy) AS acc, MAX(score) AS score, MIN(misses) AS min_misses"
-                " FROM runs WHERE complete = 1 AND looped = 0 AND speed >= 0.999 GROUP BY filename, arrangement").fetchall()
+                f"SELECT filename, {key} AS k, MAX(accuracy) AS acc, MAX(score) AS score, MIN(misses) AS min_misses"
+                " FROM runs WHERE complete = 1 AND looped = 0 AND speed >= 0.999 AND part = ?"
+                f" GROUP BY filename, {key}", (part,)).fetchall()
         finally:
             conn.close()
         out = {}
         for r in rows:
-            out.setdefault(r["filename"], {})[r["arrangement"]] = {
+            out.setdefault(r["filename"], {})[r["k"]] = {
                 "accuracy": r["acc"], "score": r["score"], "full_combo": r["min_misses"] == 0}
         return out
 
@@ -199,6 +252,7 @@ class ScoreStore:
         if not filename:
             raise RunError("filename required")
         arrangement = _text(d.get("arrangement"), 200)
+        part, difficulty = check_part(d.get("part", "") or "", d.get("difficulty", "") or "")
         hits = _int(d.get("hits"), 0, 1_000_000, "hits")
         misses = _int(d.get("misses"), 0, 1_000_000, "misses")
         if hits + misses < 1:
@@ -224,17 +278,17 @@ class ScoreStore:
             try:
                 cur = conn.execute(
                     "INSERT INTO runs (filename, arrangement, title, artist, ts, accuracy, hits, misses, best_streak,"
-                    " score, complete, looped, speed, progress, played_s, details)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " score, complete, looped, speed, progress, played_s, details, part, difficulty)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (filename, arrangement, _text(d.get("title")), _text(d.get("artist")), _now_iso(), acc, hits,
                      misses, best_streak, score, row["complete"], row["looped"], speed, progress, played_s,
-                     details_json))
+                     details_json, part, difficulty))
                 conn.commit()
                 run_id = cur.lastrowid
             finally:
                 conn.close()
-        before = self.song(filename, arrangement, exclude_id=run_id)
-        out = self.song(filename, arrangement)
+        before = self.song(filename, arrangement, exclude_id=run_id, part=part, difficulty=difficulty)
+        out = self.song(filename, arrangement, part=part, difficulty=difficulty)
         counted = is_counted(row)
         prev_best = before["best"]["accuracy"] if before["best"] else None
         prev_best_score = before["best_score"]["score"] if before["best_score"] else None
@@ -272,10 +326,14 @@ def setup(app, context):
     meta_db = context.get("meta_db")
 
     @app.get("/api/plugins/scorecard/song")
-    def song(filename: str, arrangement: str = ""):
+    def song(filename: str, arrangement: str = "", part: str = "", difficulty: str = ""):
         if not filename or len(filename) > 1024 or len(arrangement) > 200:
             return JSONResponse({"error": "bad filename or arrangement"}, status_code=400)
-        out = store.song(filename, arrangement)
+        try:
+            check_part(part, difficulty)
+        except RunError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        out = store.song(filename, arrangement, part=part, difficulty=difficulty)
         out["core"] = _core_stats(meta_db, filename, log)
         return out
 
@@ -289,7 +347,11 @@ def setup(app, context):
         return {"ok": True, **out}
 
     @app.get("/api/plugins/scorecard/bests")
-    def bests():
-        return store.bests()
+    def bests(part: str = ""):
+        try:
+            check_part(part, "")
+        except RunError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
+        return store.bests(part)
 
     log.info("scorecard: run history at %s", store.path)
