@@ -489,8 +489,9 @@ function boot() {
     // ── visibility + rendering ──
     function compactNow() {
         const m = getSettings().mode;
-        // auto: compact in a multiplayer room, and in a RockHeroSmith band (its lanes fill the stage).
-        return m === 'compact' || (m === 'auto' && (host.inRoom() || !!(activePlay() && st.play.band)));
+        // auto: compact in a multiplayer room and on a drums / 5-fret play (a RockHeroSmith band
+        // fills the stage; a solo lane's own HUD sits where the full card would cover it).
+        return m === 'compact' || (m === 'auto' && (host.inRoom() || !!activePlay()));
     }
 
     function updateVisibility() {

@@ -100,7 +100,7 @@ test('a drums session shows the HUD from play:judgment, even while RockHeroSmith
         assert.match(env.html('sc-perf'), /100\.00%/);
         assert.doesNotMatch(env.html('sc-perf'), /pitch|single notes|chords/);
         assert.equal(env.root().attrs['data-play'], '');
-        assert.equal(env.root().attrs['data-compact'], undefined, 'a solo keeps the full card');
+        assert.equal(env.root().attrs['data-compact'], '', 'auto is compact on a solo lane too: the full card covered its HUD');
         await env.flush();
         const songCall = env.calls.find((c) => c.url.includes('/song?'));
         assert.match(songCall.url, /part=drums/);
