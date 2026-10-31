@@ -69,7 +69,9 @@ export function applyLatencyMs(ms) {
     return safe(() => { nd().applySettings({ latencyOffset: ms / 1000 }); return true; }, false);
 }
 export function canApplyAv() { return typeof window.setAvOffsetMs === 'function'; }
-export function applyAvMs(ms) { return safe(() => { window.setAvOffsetMs(ms); return true; }, false); }
+// A user click: 'manual', so core applies it even when the offset is locked
+// (set by hand or by Calibrate). false when core ignored it.
+export function applyAvMs(ms) { return safe(() => window.setAvOffsetMs(ms, false, 'manual') !== false, false); }
 
 // ── v3 player chrome ──
 export function playerControlSlot() {

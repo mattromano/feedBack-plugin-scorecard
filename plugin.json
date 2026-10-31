@@ -1,7 +1,7 @@
 {
   "id": "scorecard",
   "name": "Scorecard",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Rock Band-style score, streak, timing gauge and run history: real guitar from Note Detection, drums and 5-fret from RockHeroSmith.",
   "category": "practice",
   "icon": "assets/thumb.svg",
