@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1] - 2026-10-31
+
+### Fixed
+- A drums / 5-fret play hides Scorecard's streak box and score in a band too: the lanes keep their own streak, and the
+  box sat over the guitar lane showing the drummer's numbers.
+- Auto size is compact on a drums / 5-fret solo as well: the full card covered the lane's own score column.
+
 ## [1.1.0] - 2026-10-29
 
 ### Added
