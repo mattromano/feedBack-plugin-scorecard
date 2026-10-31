@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2] - 2026-10-31
+
+### Fixed
+- The A/V check's Apply works when the A/V offset is locked (set by hand, or by the main menu's Calibrate): it now
+  passes core's 'manual' source instead of being silently ignored.
+
 ## [1.1.1] - 2026-10-31
 
 ### Fixed
